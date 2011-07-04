@@ -1,0 +1,19 @@
+
+Adding a hook
+-------------
+
+You can create new hooks (limited to 'post-receive' for now) by creating a new file
+ending with "-hook", and containing at least one these 2 functions definitions:
+
+    ## post-receive_ref function gets called for each ref pushed with these variables
+    ##     oldrev, newrev, refname
+    post-receive_ref() {
+          ## MY code
+    }
+
+    ## post-receive_post function gets called once per push after refs.
+    post-receive_post() {
+          ## MY code
+
+    }
+

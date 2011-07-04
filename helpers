@@ -1,0 +1,57 @@
+
+## unset GIT_DIR as it value is "." and this will make fail miserabily
+## all git command called.
+unset GIT_DIR
+
+## This is the correct path of the current git repository if needed.
+CURRENT_REPO_PATH="$PWD"
+
+# Remove the latest "/" and get the last two parts of the path
+COMPONENT_NAME="$(echo "$PWD" | sed "s:/$::" | rev | cut -f -2 -d "/" | rev)"
+COMPONENT_NAME="$(basename "$PWD" .git)"
+
+##
+## log helpers
+##
+
+tmpdir=$(mktemp -d -p "$tmp")
+logfile=${logfile:-$tmpdir/log}
+
+if ! test -e "$logfile"; then
+    touch "$logfile"
+    chmod g+rw "$logfile"
+fi
+
+divert_to_log() {
+    cat - >> "$logfile"
+}
+
+copy_to_log() {
+    tee -a "$logfile"
+}
+
+wrap() {
+    echo "COMMAND [$PWD] $ " "$@" | divert_to_log
+    eval "$@" 2>&1 | divert_to_log
+}
+
+msg() {
+    echo "[hook] $@" | copy_to_log
+}
+
+##
+## Launch helpers
+##
+
+launch_hook () {
+
+    hook_file=$1
+    hook=$2
+    (
+        unset "$hook" >/dev/null 2>&1
+        source "$hook_file"
+        if [ "$(type -t $hook)" == "function" ]; then
+            $hook
+        fi
+    )
+}

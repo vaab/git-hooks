@@ -1,0 +1,43 @@
+
+HOST="www"
+
+logfile=/tmp/logfile
+## post-receive_ref function gets called for each ref pushed with these variables set
+##     oldrev, newrev, refname
+post-receive_ref() {
+
+    if [ "$refname" = "refs/heads/master" ]; then
+
+	if [ "$COMPONENT_NAME" == "portail" ]; then
+	   target_repository=$COMPONENT_NAME
+	else
+	   target_repository=apps/$COMPONENT_NAME
+	fi
+
+	cat <<EOF | ssh "$HOST" | divert_to_log
+
+           full_target_repository="/var/www/s-dev.simplee.fr/$target_repository"
+           if [ -d "\$full_target_repository" ]; then
+               cd "\$full_target_repository" &&
+               git fetch &&
+               git reset --hard origin/master
+           else
+	       git clone "git:/var/git/simplee.fr/$COMPONENT_NAME" "\$full_target_repository"
+               cd "\$full_target_repository"
+           fi
+		
+	   test -x ./autogen.sh && ./autogen.sh
+EOF
+
+	
+
+    else
+        msg "Not update of portail"
+    fi
+
+}
+
+## post-receive_post function gets called once per push after refs.
+post-receive_post() {
+  :
+}
