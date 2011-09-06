@@ -7,8 +7,31 @@
 SCRIPT_DIR="$(dirname "$(readlink -e "$0")")"
 . "$SCRIPT_DIR/helpers"
 
-hook_files="$(ls "$SCRIPT_DIR/"*.hook)"
-#local_hook_files="$
+## Will display some additional information. This might be helpfull to
+## debug what is happening.
+VERBOSE="True"
+
+[ -e "/etc/git-hooks.conf" ] && . /etc/git-hooks.conf
+
+if ! [ -d "$CURRENT_REPO_PATH/hooks/post-receive.d/" ]; then
+    if [ "$VERBOSE" == "True" ]; then
+        echo "!! No hook dir !."
+        echo "    -> You must put your hooks in 'hooks/post-receive.d/' directory"
+    fi
+    test -d "$tmpdir" && rm -rf "$tmpdir"
+    exit 0
+fi
+
+hook_files="$(echo "$CURRENT_REPO_PATH/hooks/post-receive.d/"*.hook)"
+if [ "$hook_files" == "$CURRENT_REPO_PATH/hooks/post-receive.d/*.hook" ]; then
+     if [ "$VERBOSE" == "True" ]; then
+          echo "!! Hook dir is empty, or hook files not correctly named."
+          echo "    -> Your hooks should be placed and named as follows:"
+          echo "       '$CURRENT_REPO_PATH/hooks/post-receive.d/*.hook'"
+     fi
+     test -d "$tmpdir" && rm -rf "$tmpdir"
+     exit 0
+fi
 
 echo "Launch generic-post-receive..." | divert_to_log
 
