@@ -7,7 +7,7 @@
 SCRIPT_DIR="$(dirname "$(readlink -e "$0")")"
 . "$SCRIPT_DIR/helpers"
 
-hook_files="$(ls "$SCRIPT_DIR/"*-hook)"
+hook_files="$(ls "$SCRIPT_DIR/"*.hook)"
 #local_hook_files="$
 
 echo "Launch generic-post-receive..." | divert_to_log
