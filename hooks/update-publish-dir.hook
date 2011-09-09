@@ -8,15 +8,13 @@ logfile=/tmp/logfile
 ##     oldrev, newrev, refname
 post-receive_ref() {
 
-
     if ! [ "$(echo "$refname" | cut -c -10)" == "refs/heads" ]; then
         echo "$refname is not a branch, so not updating publish dir."
         return
     fi
 
     branch_name=${refname#refs/heads/}
-   
- 
+
     target_repository="$DISTANT_TARGET_DIR/$branch_name/$COMPONENT_NAME"
 
     cat <<EOF | ssh "$HOST" | divert_to_log
@@ -32,7 +30,7 @@ post-receive_ref() {
                cd "$target_repository"
                git checkout "$branch_name"
            fi
-		
+
 	   test -x ./autogen.sh && ./autogen.sh
 EOF
 
