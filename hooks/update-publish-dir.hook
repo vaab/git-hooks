@@ -1,10 +1,8 @@
 
-HOST="www"
-DISTANT_TARGET_DIR="/var/www/s-dev.simplee.fr/publish"
+required_variables="HOST DISTANT_TARGET_DIR"
 
-
-logfile=/tmp/logfile
-## post-receive_ref function gets called for each ref pushed with these variables set
+## post-receive_ref function gets called for each pushed ref
+## these variables will be set accordingly:
 ##     oldrev, newrev, refname
 post-receive_ref() {
 
@@ -37,6 +35,6 @@ EOF
 }
 
 ## post-receive_post function gets called once per push after refs.
-post-receive_post() {
-  :
-}
+# post-receive_post() {
+#   :
+# }

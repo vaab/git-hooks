@@ -39,6 +39,11 @@ msg() {
     echo "[hook] $@" | copy_to_log
 }
 
+is_defined () {
+    eval '[[ ${!'$1'[@]} ]]'
+}
+
+
 ##
 ## Launch helpers
 ##
@@ -49,9 +54,52 @@ launch_hook () {
     hook=$2
     (
         unset "$hook" >/dev/null 2>&1
+        basename=$(basename $1 .hook)
+        require_variables=""
+
+        conf_files="
+            $HOOK_CONF_DIR/global.conf
+            $HOOK_CONF_DIR/$basename.conf 
+            $HOOK_CONF_DIR/$COMPONENT_NAME/$basename.conf 
+            $CURRENT_REPO_PATH/hooks/post-receive.d/$basename.conf
+        "
+
+        conf_file=""
+        sourced=""
+        for conf_file in $conf_files; do
+            if test -e "$conf_file"; then
+                source "$conf_file"
+                if [ "$VERBOSE" == "True" ]; then
+                    echo "II Sourcing $conf_file."
+                fi
+                sourced="$conf_file $sourced"
+            fi
+        done
+
+
         source "$hook_file"
+
         if [ "$(type -t $hook)" == "function" ]; then
+
+            if [ -z "$sourced" ]; then
+                echo "II No conf file was found in any of those location:"
+                echo "$(echo $conf_files | tr " " "\n" | sed "s/^/    /g" )"
+            fi
+
+            for var in $required_variables; do
+                if ! is_defined "$var" >/dev/null 2>&1; then
+                    echo "!! required variable '$var' was not set for '$basename'."
+                    echo "!! Aborting related hook '$hook'."
+                    return 1
+                fi
+            done
+
             $hook
+        else
+            if [ "$VERBOSE" == "True" ]; then
+                echo "II No $hook provided by $hook_file."
+            fi
         fi
+
     )
 }

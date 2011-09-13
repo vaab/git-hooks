@@ -9,7 +9,10 @@ SCRIPT_DIR="$(dirname "$(readlink -e "$0")")"
 
 ## Will display some additional information. This might be helpfull to
 ## debug what is happening.
-VERBOSE="True"
+
+VERBOSE="False"
+HOOK_CONF_DIR=/etc/git-hooks.d
+
 
 [ -e "/etc/git-hooks.conf" ] && . /etc/git-hooks.conf
 
