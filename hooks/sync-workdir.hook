@@ -1,0 +1,42 @@
+
+
+#HOST="www"
+#DISTANT_REPO_DIR=""
+#TARGET_BRANCH="master"
+
+## XXXvlab: find another solution
+#SOURCE_REPO_FOR_TARGET_REPO=""
+
+required_variables="HOST DISTANT_REPO_DIR TARGET_BRANCH SOURCE_REPO_FOR_TARGET_REPO" 
+
+logfile=/tmp/logfile
+## post-receive_ref function gets called for each ref pushed with these variables set
+##     oldrev, newrev, refname
+post-receive_ref() {
+
+    if [ "$refname" = "refs/heads/$TARGET_BRANCH" ]; then
+        echo "Ref $refname triggers sync-workdir hook towards $HOST:$DISTANT_REPO_DIR"
+	cat <<EOF | ssh "$HOST" | divert_to_log
+
+           DISTANT_REPO_DIR=$DISTANT_REPO_DIR
+           if [ -d "\$DISTANT_REPO_DIR" ]; then
+               cd "\$DISTANT_REPO_DIR" &&
+               git fetch
+           else
+	       git clone $SOURCE_REPO_FOR_TARGET_REPO "\$DISTANT_REPO_DIR" &&
+               cd "\$DISTANT_REPO_DIR"
+           fi &&
+           git checkout $TARGET_BRANCH &&
+           git reset --hard origin/$TARGET_BRANCH
+		
+	   test -x ./autogen.sh && ./autogen.sh
+EOF
+
+    fi
+
+}
+
+## post-receive_post function gets called once per push after refs.
+#post-receive_post() {
+#  :
+#}
