@@ -1,0 +1,146 @@
+#!/bin/bash
+
+exname="$(basename "$0")"
+
+
+gitdir="$(git rev-parse --git-dir)"
+if [ "$?" != "0" ]; then
+    echo "You are not in a git repository." >&2
+    exit 1
+fi
+
+githooks_base=$(git config "git-hooks.install-dir")
+if [ "$?" != "0" ]; then
+    echo "No git-hooks.install-dir variable. Please set this variable with:" >&2
+    echo "   git config [--system] git-hooks.install-dir MY_GIT_HOOK_BASE_DIR" >&2
+    exit 1
+fi
+
+if ! [ -e "$githooks_base/generic-post-receive" ]; then
+    echo "Bad path for git-hooks.install_dir !" >&2
+    echo "file '$githooks_base/generic-post-receive' not found" >&2
+    exit 1
+fi
+
+
+function git_hooks_init() {
+
+    if [ -L "$gitdir/hooks/post-receive" ]; then
+       if [ "$(readlink -e "$gitdir/hooks/post-receive")" == \
+            "$githooks_base/generic-post-receive" ]; then
+           echo "Correct link already existing."
+       else
+           echo "Error: another link is already set in $gitdir/hooks/post-receive"
+           exit 1
+       fi
+    elif [ -e "$gitdir/hooks/post-receive" ]; then
+       echo "Error: a file already exists by the name: gitdir/hooks/post-receive"
+       exit 1
+    else
+        ln -snv "$githooks_base/generic-post-receive" "$gitdir/hooks/post-receive"
+    fi
+
+    mkdir -p "$gitdir/hooks/post-receive.d"
+}
+export -f git_hooks_init
+
+
+## Ensure that ssh authenticationis passwd-less between localhost and HOST lxc
+function can_ssh_without_passwd() {
+  ssh -o StrictHostKeyChecking=no -o PasswordAuthentication=no "$1" \
+     echo "test" >/dev/null 2>&1
+}
+
+
+function git_hooks_follow() {
+
+    ## XXXvlab: remove reverse_host !
+    usage="$exname follow BRANCH HOST:DIR REVERSE_HOST"
+
+    if [ "$#" != 3  ]; then
+        echo "Wrong number of arguments"
+        echo "usage: $usage"
+        exit 1
+    fi
+
+    branch=$1
+    hostdir=$2
+    revhost=$3
+
+    host=$(echo $2 | cut -f 1 -d ":")
+    dir=$(echo $2 | cut -f 2- -d ":")
+
+    if ! can_ssh_without_passwd "$host"; then
+    ## need to create key and send it to HOST
+        if ! [ -e ~/.ssh/id_rsa.pub ]; then
+        ## need to create a key
+            echo ssh-keygen -t rsa -q -f ~/.ssh/id_rsa -N ""
+        fi
+
+        echo "Logging to $host to copy ssh keys:"
+        ssh-copy-id "$host"
+        if [ "$?" != 0 ]; then
+            echo "Error: cannot ssh-copy-id." >&2
+            exit 1
+	fi
+
+    fi
+
+    if ! can_ssh_without_passwd "$host"; then
+        echo "Cannot ssh towards $HOST despite copying id ?!" >&2
+        exit 1
+    fi
+
+    md5=$(echo "$dir" | md5sum | cut -c 1-8 )
+    name="sync-workdir_${host}_${md5}"
+
+    if ! [ -d "$gitdir/hooks/post-receive.d" ]; then
+        echo "No '$gitdir/hooks/post-receive.d' existing..."
+        echo "Perhaps launching 'git-hooks init' will help..."
+        git-hooks init
+        test "$?" == "0" || exit 1
+    fi
+
+    l="$gitdir/hooks/post-receive.d/$name.hook"
+    c="$gitdir/hooks/post-receive.d/$name.conf"
+
+    if [ -e "$l" ]; then
+        echo "File '$l' already exists."
+        exit 1
+    fi
+
+    ln -sn "$githooks_base/hooks/sync-workdir.hook" "$l"
+    cat <<EOF > "$c"
+
+HOST="$host"
+DISTANT_REPO_DIR="$dir"
+TARGET_BRANCH="$branch"
+
+## XXXvlab: find another solution
+SOURCE_REPO_FOR_TARGET_REPO="$revhost"
+
+EOF
+
+}
+export -f git_hooks_follow
+
+##
+## Code
+##
+
+arg=$1
+shift
+if [ "$(type -t git_hooks_$arg)" == "function" ]; then
+    git_hooks_$arg "$@"
+else
+    cmd_funcs=$(set | egrep "^git_hooks_[a-zA-Z0-9_]+ ()" | cut -f 1 -d " " | \
+         cut -f 3- -d "_")
+
+    echo "Unknown sub-command '$arg' for git-hooks"
+    echo
+    echo "This is the list of supported sub-commands:"
+    for i in $cmd_funcs; do
+       echo "   git-hooks $i"
+    done
+    echo
+fi
