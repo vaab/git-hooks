@@ -1,18 +1,19 @@
 ## -*- mode: shell-script -*-
 
-required_variables="HOST DISTANT_TARGET_DIR"
+required_variables="HOST DISTANT_TARGET_DIR SOURCE_REPO_FOR_TARGET_REPO"
+
+## XXXvlab: find another solution
+#SOURCE_REPO_FOR_TARGET_REPO=""
+
 
 ## post-receive_ref function gets called for each pushed ref
 ## these variables will be set accordingly:
 ##     oldrev, newrev, refname
 post-receive_ref() {
 
-    if ! [ "$(echo "$refname" | cut -c -10)" == "refs/heads" ]; then
-        echo "$refname is not a branch, so not updating publish dir."
-        return
-    fi
+    is_branch "$refname" || return
 
-    branch_name=${refname#refs/heads/}
+    branch_name=$(get_bare_name "$refname")
 
     target_repository="$DISTANT_TARGET_DIR/$branch_name/$COMPONENT_NAME"
 
@@ -25,8 +26,8 @@ post-receive_ref() {
                git checkout "$branch_name" &&
                git reset --hard origin/$branch_name
            else
-	       git clone "git:/var/git/simplee.fr/$COMPONENT_NAME" "$target_repository"
-               cd "$target_repository"
+	       git clone "$SOURCE_REPO_FOR_TARGET_REPO" "$target_repository" &&
+               cd "$target_repository" &&
                git checkout "$branch_name"
            fi
 
@@ -39,3 +40,40 @@ EOF
 # post-receive_post() {
 #   :
 # }
+
+
+## Setup the hook when in a gitdir. This is launched thanks to the
+##  ``git-hooks add <my-hook-name> ...``
+##
+## Note: this command should create the ``<my-hook>.conf`` file thanks to the
+##   ``init_action`` command.
+## Receives:
+##   $hook_name
+install() {
+    local usage distant_target_dir host
+
+    usage="$command_prefix HOST DISTANT_TARGET_DIR REVERSE_HOST"
+
+    if [ "$#" != 3  ]; then
+        echo "Wrong number of arguments"
+        echo "usage: $usage"
+        exit 1
+    fi
+
+    host=$1
+    distant_target_dir=$2
+    revhost=$3
+
+    make_ssh_connection_work "$host" || exit 1
+
+    init_action "$host:$dir" <<EOF
+
+HOST="$host"
+DISTANT_TARGET_DIR="$distant_target_dir"
+
+## XXXvlab: find another solution
+SOURCE_REPO_FOR_TARGET_REPO="$revhost"
+
+EOF
+
+}
