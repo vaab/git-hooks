@@ -39,3 +39,38 @@ post-receive_ref() {
 #}
 
 
+## Setup the hook when in a gitdir. This is launched thanks to the
+##  ``git-hooks add <my-hook-name> ...``
+##
+## Note: this command should create the ``<my-hook>.conf`` file thanks to the
+##   ``init_action`` command.
+## Receives:
+##   $hook_name
+install() {
+    local usage tag_regex hostdir host dir
+
+    usage="$command_prefix TAG_REGEX HOST:DIR"
+
+    if [ "$#" != 2  ]; then
+        echo "Wrong number of arguments"
+        echo "usage: $usage"
+        exit 1
+    fi
+
+    tag_regex=$1
+    hostdir=$2
+
+    host=$(echo $hostdir | cut -f 1 -d ":")
+    dir=$(echo $hostdir | cut -f 2- -d ":")
+
+    make_ssh_connection_work "$host" || exit 1
+
+    init_action "$host:$dir" <<EOF
+
+HOST="$host"
+DISTANT_REPO_DIR="$dir"
+TARGET_TAG_REGEX="$tag_regex"
+
+EOF
+
+}

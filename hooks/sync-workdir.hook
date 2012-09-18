@@ -41,3 +41,46 @@ EOF
 #post-receive_post() {
 #  :
 #}
+
+
+## Setup the hook when in a gitdir. This is launched thanks to the
+##  ``git-hooks add <my-hook-name> ...``
+##
+## Note: this command should create the ``<my-hook>.conf`` file thanks to the
+##   ``init_action`` command.
+## Receives:
+##   $hook_name
+install() {
+
+    local usage branch hostdir host dir revhost
+
+    ## XXXvlab: remove reverse_host !
+    usage="$command_prefix BRANCH HOST:DIR REVERSE_HOST"
+
+    if [ "$#" != 3  ]; then
+        echo "Wrong number of arguments"
+        echo "usage: $usage"
+        exit 1
+    fi
+
+    branch=$1
+    hostdir=$2
+    revhost=$3
+
+    host=$(echo $2 | cut -f 1 -d ":")
+    dir=$(echo $2 | cut -f 2- -d ":")
+
+    make_ssh_connection_work "$host" || exit 1
+
+    init_action "$dir" <<EOF
+
+HOST="$host"
+DISTANT_REPO_DIR="$dir"
+TARGET_BRANCH="$branch"
+
+## XXXvlab: find another solution
+SOURCE_REPO_FOR_TARGET_REPO="$revhost"
+
+EOF
+
+}
