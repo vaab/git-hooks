@@ -15,9 +15,13 @@ logfile=/tmp/logfile
 ##     oldrev, newrev, refname
 post-receive_ref() {
 
-    if [ "$refname" = "refs/heads/$TARGET_BRANCH" ]; then
-        echo "Ref $refname triggers sync-workdir hook towards $HOST:$DISTANT_REPO_DIR"
-	cat <<EOF | ssh "$HOST" | divert_to_log
+    is_branch "$refname" || return
+
+    ref="$(get_bare_name "$refname")"
+    [ "$ref" == "$TARGET_BRANCH" ] || return
+
+    echo "Forcing workdir of $HOST:$DISTANT_REPO_DIR to new ref on branch '$ref'."
+    cat <<EOF | ssh "$HOST" | divert_to_log
 
            DISTANT_REPO_DIR=$DISTANT_REPO_DIR
            if [ -d "\$DISTANT_REPO_DIR" ]; then
@@ -32,8 +36,6 @@ post-receive_ref() {
 
 	   test -x ./autogen.sh && ./autogen.sh
 EOF
-
-    fi
 
 }
 

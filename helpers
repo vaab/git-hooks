@@ -118,6 +118,10 @@ function is_tag() {
    echo "$1" | grep "^refs/tags/" 2>&1 >/dev/null
 }
 
+function is_branch() {
+   echo "$1" | grep "^refs/heads/" 2>&1 >/dev/null
+}
+
 function get_bare_name() {
    echo "$1" | cut -f 3- -d "/"
 }
