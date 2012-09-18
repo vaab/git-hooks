@@ -45,12 +45,13 @@ function git_hooks_init() {
 export -f git_hooks_init
 
 
-## Ensure that ssh authenticationis passwd-less between localhost and HOST lxc
+## Check if ssh authentication is passwd-less between localhost and $1 lxc
 function can_ssh_without_passwd() {
   ssh -o StrictHostKeyChecking=no -o PasswordAuthentication=no "$1" \
      echo "test" >/dev/null 2>&1
 }
 
+## Ensure that ssh authentication is passwd-less between localhost and $1 lxc
 function make_ssh_connection_work() {
     host="$1"
     if ! can_ssh_without_passwd "$host"; then
@@ -76,6 +77,7 @@ function make_ssh_connection_work() {
 
 }
 
+## Ensure that git hooks was inited
 function make_git_hooks_inited() {
     if ! [ -d "$gitdir/hooks/post-receive.d" ]; then
         echo "No '$gitdir/hooks/post-receive.d' existing..."

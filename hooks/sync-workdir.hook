@@ -7,7 +7,8 @@
 ## XXXvlab: find another solution
 #SOURCE_REPO_FOR_TARGET_REPO=""
 
-required_variables="HOST DISTANT_REPO_DIR TARGET_BRANCH SOURCE_REPO_FOR_TARGET_REPO" 
+## All variables listed here will be checked for existence
+required_variables="HOST DISTANT_REPO_DIR TARGET_BRANCH SOURCE_REPO_FOR_TARGET_REPO"
 
 logfile=/tmp/logfile
 ## post-receive_ref function gets called for each ref pushed with these variables set
@@ -28,7 +29,7 @@ post-receive_ref() {
            fi &&
            git checkout $TARGET_BRANCH &&
            git reset --hard origin/$TARGET_BRANCH
-		
+
 	   test -x ./autogen.sh && ./autogen.sh
 EOF
 

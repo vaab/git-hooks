@@ -4,15 +4,15 @@
 #DISTANT_REPO_DIR="$dir"
 #TARGET_TAG_REGEX="$branch"
 
-
-required_variables="HOST DISTANT_REPO_DIR TARGET_TAG_REGEX" 
+## All variables listed here will be checked for existence
+required_variables="HOST DISTANT_REPO_DIR TARGET_TAG_REGEX"
 
 logfile=/tmp/logfile
 ## post-receive_ref function gets called for each ref pushed with these variables set
 ##     oldrev, newrev, refname
 post-receive_ref() {
 
-    is_tag "$refname" || return 
+    is_tag "$refname" || return
 
     tag=$(get_bare_name "$refname")
     echo "$tag" | grep -- "$TARGET_TAG_REGEX" 2>&1 >/dev/null || return
