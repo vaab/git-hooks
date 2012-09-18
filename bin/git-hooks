@@ -51,8 +51,76 @@ function can_ssh_without_passwd() {
      echo "test" >/dev/null 2>&1
 }
 
+function make_ssh_connection_work() {
+    host="$1"
+    if ! can_ssh_without_passwd "$host"; then
+        ## need to create key and send it to HOST
+        if ! [ -e ~/.ssh/id_rsa.pub ]; then
+            ## need to create a key
+            ssh-keygen -t rsa -q -f ~/.ssh/id_rsa -N ""
+        fi
+
+        echo "Logging to $host to copy ssh keys:"
+        ssh-copy-id "$host"
+        if [ "$?" != 0 ]; then
+            echo "Error: cannot ssh-copy-id." >&2
+            return 1
+	fi
+
+    fi
+
+    if ! can_ssh_without_passwd "$host"; then
+        echo "Cannot ssh towards $HOST despite copying id ?!" >&2
+        return 1
+    fi
+
+}
+
+function make_git_hooks_inited() {
+    if ! [ -d "$gitdir/hooks/post-receive.d" ]; then
+        echo "No '$gitdir/hooks/post-receive.d' existing..."
+        echo "Perhaps launching 'git-hooks init' will help..."
+        git-hooks init
+        test "$?" == "0" || return 1
+    fi
+}
+
+function init_action() {
+
+    local hook_name md5salt md5 name l c hook_src
+
+    hook_name="$1"
+    md5salt="$2"
+
+    md5=$(echo "$md5salt" | md5sum | cut -c 1-8 )
+    name="${hook_name}_${host}_${md5}"
+    l="$gitdir/hooks/post-receive.d/$name.hook"
+    c="$gitdir/hooks/post-receive.d/$name.conf"
+
+    if [ -e "$l" ]; then
+        echo "File '$l' already exists. Aborting."
+        exit 1
+    fi
+    if [ -e "$c" ]; then
+        echo "File '$c' already exists. Aborting."
+        exit 1
+    fi
+
+    hook_src="$githooks_base/hooks/${hook_name}.hook"
+    if ! [ -e "$hook_src" ]; then
+        echo "Source hook '$hook_src' doesn't exists !"
+        exit 1
+    fi
+
+    ln -sn "$githooks_base/hooks/${hook_name}.hook" "$l"
+    cat - > "$c"
+
+}
 
 function git_hooks_follow() {
+    local hook_name
+
+    hook_name="sync-workdir"
 
     ## XXXvlab: remove reverse_host !
     usage="$exname follow BRANCH HOST:DIR REVERSE_HOST"
@@ -70,36 +138,12 @@ function git_hooks_follow() {
     host=$(echo $2 | cut -f 1 -d ":")
     dir=$(echo $2 | cut -f 2- -d ":")
 
-    if ! can_ssh_without_passwd "$host"; then
-    ## need to create key and send it to HOST
-        if ! [ -e ~/.ssh/id_rsa.pub ]; then
-        ## need to create a key
-            echo ssh-keygen -t rsa -q -f ~/.ssh/id_rsa -N ""
-        fi
-
-        echo "Logging to $host to copy ssh keys:"
-        ssh-copy-id "$host"
-        if [ "$?" != 0 ]; then
-            echo "Error: cannot ssh-copy-id." >&2
-            exit 1
-	fi
-
-    fi
-
-    if ! can_ssh_without_passwd "$host"; then
-        echo "Cannot ssh towards $HOST despite copying id ?!" >&2
-        exit 1
-    fi
+    make_ssh_connection_work "$host" || exit 1
 
     md5=$(echo "$dir" | md5sum | cut -c 1-8 )
-    name="sync-workdir_${host}_${md5}"
+    name="${hook_name}_${host}_${md5}"
 
-    if ! [ -d "$gitdir/hooks/post-receive.d" ]; then
-        echo "No '$gitdir/hooks/post-receive.d' existing..."
-        echo "Perhaps launching 'git-hooks init' will help..."
-        git-hooks init
-        test "$?" == "0" || exit 1
-    fi
+    make_git_hooks_inited || exit 1
 
     l="$gitdir/hooks/post-receive.d/$name.hook"
     c="$gitdir/hooks/post-receive.d/$name.conf"
@@ -123,6 +167,42 @@ EOF
 
 }
 export -f git_hooks_follow
+
+
+
+function git_hooks_release() {
+    local hook_name
+
+    hook_name="release-on-tag"
+    ## XXXvlab: remove reverse_host !
+    usage="$exname release TAG_REGEX HOST:DIR"
+
+    if [ "$#" != 2  ]; then
+        echo "Wrong number of arguments"
+        echo "usage: $usage"
+        exit 1
+    fi
+
+    tag_regex=$1
+    hostdir=$2
+
+    host=$(echo $hostdir | cut -f 1 -d ":")
+    dir=$(echo $hostdir | cut -f 2- -d ":")
+
+    make_ssh_connection_work "$host" || exit 1
+    make_git_hooks_inited || exit 1
+
+    init_action "$hook_name" "$dir" <<EOF
+
+HOST="$host"
+DISTANT_REPO_DIR="$dir"
+TARGET_TAG_REGEX="$tag_regex"
+
+EOF
+
+}
+export -f git_hooks_release
+
 
 ##
 ## Code

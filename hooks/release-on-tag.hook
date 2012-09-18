@@ -1,0 +1,40 @@
+
+#HOST="$host"
+#DISTANT_REPO_DIR="$dir"
+#TARGET_TAG_REGEX="$branch"
+
+
+required_variables="HOST DISTANT_REPO_DIR TARGET_TAG_REGEX" 
+
+logfile=/tmp/logfile
+## post-receive_ref function gets called for each ref pushed with these variables set
+##     oldrev, newrev, refname
+post-receive_ref() {
+
+    is_tag "$refname" || return 
+
+    tag=$(get_bare_name "$refname")
+    echo "$tag" | grep -- "$TARGET_TAG_REGEX" 2>&1 >/dev/null || return
+
+    pid="$$"
+    clone_dir="$tmpdir/$pid"
+    output_file="$tmpdir/${COMPONENT_NAME}-$tag.tar.gz"
+
+    echo "Releasing '${COMPONENT_NAME}-$tag.tar.gz' to '$HOST:$DISTANT_REPO_DIR'."
+    mkdir "$clone_dir" &&
+    git clone -q "$CURRENT_REPO_PATH" "$clone_dir/$COMPONENT_NAME" &&
+    (cd "$clone_dir/$COMPONENT_NAME" &&
+     git checkout -q "$tag") &&
+    rm -rf "$clone_dir/$COMPONENT_NAME/.git" &&
+    (cd "$clone_dir"; tar c "$COMPONENT_NAME" | gzip > "$output_file") &&
+    scp "$output_file" "$HOST:$DISTANT_REPO_DIR" &&
+    rm -rf "$clone_dir" "$output_file"
+
+}
+
+## post-receive_post function gets called once per push after refs.
+#post-receive_post() {
+#  :
+#}
+
+

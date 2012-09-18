@@ -7,8 +7,12 @@ unset GIT_DIR
 CURRENT_REPO_PATH="$PWD"
 
 # Remove the latest "/" and get the last two parts of the path
-COMPONENT_NAME="$(echo "$PWD" | sed "s:/$::" | rev | cut -f -2 -d "/" | rev)"
-COMPONENT_NAME="$(basename "$PWD" .git)"
+COMPONENT_NAME="$(echo "$PWD" | sed "s:/$::")"
+if [ "$(basename "$COMPONENT_NAME")" == ".git" ]; then
+    COMPONENT_NAME="$(basename "$(dirname "$COMPONENT_NAME")")"
+else
+    COMPONENT_NAME="$(basename "$PWD" .git)"
+fi
 
 ##
 ## log helpers
@@ -102,4 +106,17 @@ launch_hook () {
         fi
 
     )
+}
+
+
+##
+## git ref helpers
+##
+
+function is_tag() {
+   echo "$1" | grep "^refs/tags/" 2>&1 >/dev/null
+}
+
+function get_bare_name() {
+   echo "$1" | cut -f 3- -d "/"
 }
