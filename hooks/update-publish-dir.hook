@@ -1,3 +1,4 @@
+## -*- mode: shell-script -*-
 
 required_variables="HOST DISTANT_TARGET_DIR"
 

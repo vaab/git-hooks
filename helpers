@@ -1,3 +1,4 @@
+## -*- mode: shell-script -*-
 
 ## unset GIT_DIR as it value is "." and this will make fail miserabily
 ## all git command called.

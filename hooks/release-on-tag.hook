@@ -1,3 +1,4 @@
+## -*- mode: shell-script -*-
 
 #HOST="$host"
 #DISTANT_REPO_DIR="$dir"
