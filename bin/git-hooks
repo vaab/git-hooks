@@ -158,7 +158,15 @@ git_hooks_add() {
     make_git_hooks_inited || exit 1
 
     command_prefix="$exname add $hook_name"
+    ## unset any function that could have been defined before
+    unset "install" >/dev/null 2>&1
+
     . "$hook_file"
+
+    if ! [ "$(type -t install)" == "function" ]; then
+        echo "Hook defined in '$hook_file' does not declare any 'install' method"
+        exit 1
+    fi
 
     install "$@"
 
