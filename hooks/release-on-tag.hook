@@ -1,15 +1,12 @@
 ## -*- mode: shell-script -*-
 
-#HOST="$host"
-#DISTANT_REPO_DIR="$dir"
-#TARGET_TAG_REGEX="$branch"
-
 ## All variables listed here will be checked for existence
 required_variables="HOST DISTANT_REPO_DIR TARGET_TAG_REGEX"
 
 logfile=/tmp/logfile
-## post-receive_ref function gets called for each ref pushed with these variables set
-##     oldrev, newrev, refname
+## post-receive_ref function gets called for each pushed ref.
+## These variables will be set accordingly:
+##     $oldrev, $newrev, $refname
 post-receive_ref() {
 
     is_tag "$refname" || return
@@ -49,7 +46,7 @@ post-receive_ref() {
 install() {
     local usage tag_regex hostdir host dir
 
-    usage="$command_prefix TAG_REGEX HOST:DIR"
+    usage="$command_prefix TARGET_TAG_REGEX HOST:DISTANT_REPO_DIR"
 
     if [ "$#" != 2  ]; then
         echo "Wrong number of arguments"

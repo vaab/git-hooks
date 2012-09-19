@@ -66,7 +66,7 @@ install() {
     local usage branch hostdir host dir
 
     ## XXXvlab: remove reverse_host !
-    usage="$command_prefix BRANCH HOST:DIR"
+    usage="$command_prefix TARGET_BRANCH HOST:DISTANT_REPO_DIR"
 
     if [ "$#" != 2  ]; then
         echo "Wrong number of arguments"
