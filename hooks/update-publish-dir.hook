@@ -30,20 +30,21 @@ post-receive_ref() {
         rm -rf "$local_tmp_dir/"
     fi
 
-    cat <<EOF | ssh "$HOST" | divert_to_log
+    ssh "$HOST" "
 
-           if [ -d "$target_repository" ]; then
-               cd "$target_repository" &&
+           if [ -d \"$target_repository\" ]; then
+               cd \"$target_repository\" &&
                git fetch -q &&
-               git checkout -q "$branch_name" &&
-               git reset --hard origin/$branch_name
+               git checkout -q \"$branch_name\" &&
+               git reset --hard \"origin/$branch_name\"
            else
-               echo "Unsuspected error: '$target_repository' is not found."
+               echo \"Unsuspected error: '$target_repository' is not found.\"
                exit 1
            fi
 
 	   test -x ./autogen.sh && ./autogen.sh
-EOF
+
+" | divert_to_log
 
 }
 
