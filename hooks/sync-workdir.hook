@@ -1,37 +1,46 @@
 ## -*- mode: shell-script -*-
 
-#HOST="www"
-#DISTANT_REPO_DIR=""
-#TARGET_BRANCH="master"
-
-## XXXvlab: find another solution
-#SOURCE_REPO_FOR_TARGET_REPO=""
-
 ## All variables listed here will be checked for existence
-required_variables="HOST DISTANT_REPO_DIR TARGET_BRANCH SOURCE_REPO_FOR_TARGET_REPO"
+required_variables="HOST DISTANT_REPO_DIR TARGET_BRANCH"
 
 logfile=/tmp/logfile
-## post-receive_ref function gets called for each ref pushed with these variables set
-##     oldrev, newrev, refname
+## post-receive_ref function gets called for each pushed ref.
+## These variables will be set accordingly:
+##     $oldrev, $newrev, $refname
 post-receive_ref() {
 
     is_branch "$refname" || return
 
-    ref="$(get_bare_name "$refname")"
-    [ "$ref" == "$TARGET_BRANCH" ] || return
+    branch_name="$(get_bare_name "$refname")"
+    [ "$branch_name" == "$TARGET_BRANCH" ] || return
 
-    echo "Forcing workdir of $HOST:$DISTANT_REPO_DIR to new ref on branch '$ref'."
+    ssh "$HOST" "[ -d '$DISTANT_REPO_DIR' ]"
+
+    has_repo=$?
+    if [ "$has_repo" != "0" ]; then
+        pid="$$"
+        local_tmp_dir="$tmpdir/$pid"
+        mkdir "$tmpdir/$pid"
+        git clone -q "$CURRENT_REPO_PATH" "$local_tmp_dir/$COMPONENT_NAME"
+        (cd "$local_tmp_dir/$COMPONENT_NAME" &&
+         git checkout -q "$TARGET_BRANCH")
+        scp -r "$local_tmp_dir/$COMPONENT_NAME" \
+            "$HOST:$DISTANT_REPO_DIR"
+        rm -rf "$local_tmp_dir/"
+    fi
+
+    echo "Forcing workdir of $HOST:$DISTANT_REPO_DIR to new ref on branch '$branch_name'."
     cat <<EOF | ssh "$HOST" | divert_to_log
 
            DISTANT_REPO_DIR=$DISTANT_REPO_DIR
            if [ -d "\$DISTANT_REPO_DIR" ]; then
                cd "\$DISTANT_REPO_DIR" &&
-               git fetch
+               git fetch -q
            else
-	       git clone $SOURCE_REPO_FOR_TARGET_REPO "\$DISTANT_REPO_DIR" &&
-               cd "\$DISTANT_REPO_DIR"
+               echo "Unsuspected error: '$DISTANT_REPO_DIR' is not found."
+               exit 1
            fi &&
-           git checkout $TARGET_BRANCH &&
+           git checkout -q "$TARGET_BRANCH" &&
            git reset --hard origin/$TARGET_BRANCH
 
 	   test -x ./autogen.sh && ./autogen.sh
@@ -54,12 +63,12 @@ EOF
 ##   $hook_name
 install() {
 
-    local usage branch hostdir host dir revhost
+    local usage branch hostdir host dir
 
     ## XXXvlab: remove reverse_host !
-    usage="$command_prefix BRANCH HOST:DIR REVERSE_HOST"
+    usage="$command_prefix BRANCH HOST:DIR"
 
-    if [ "$#" != 3  ]; then
+    if [ "$#" != 2  ]; then
         echo "Wrong number of arguments"
         echo "usage: $usage"
         exit 1
@@ -67,7 +76,6 @@ install() {
 
     branch=$1
     hostdir=$2
-    revhost=$3
 
     host=$(echo $2 | cut -f 1 -d ":")
     dir=$(echo $2 | cut -f 2- -d ":")
@@ -79,9 +87,6 @@ install() {
 HOST="$host"
 DISTANT_REPO_DIR="$dir"
 TARGET_BRANCH="$branch"
-
-## XXXvlab: find another solution
-SOURCE_REPO_FOR_TARGET_REPO="$revhost"
 
 EOF
 
