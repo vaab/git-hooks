@@ -1,34 +1,45 @@
 ## -*- mode: shell-script -*-
 
-required_variables="HOST DISTANT_TARGET_DIR SOURCE_REPO_FOR_TARGET_REPO"
+## All variables listed here will be checked for existence
+required_variables="HOST DISTANT_TARGET_DIR"
 
-## XXXvlab: find another solution
-#SOURCE_REPO_FOR_TARGET_REPO=""
-
-
-## post-receive_ref function gets called for each pushed ref
-## these variables will be set accordingly:
-##     oldrev, newrev, refname
+## post-receive_ref function gets called for each pushed ref.
+## These variables will be set accordingly:
+##     $oldrev, $newrev, $refname
 post-receive_ref() {
 
     is_branch "$refname" || return
 
     branch_name=$(get_bare_name "$refname")
 
-    target_repository="$DISTANT_TARGET_DIR/$branch_name/$COMPONENT_NAME"
+    branch_dir="$DISTANT_TARGET_DIR/$branch_name"
+    target_repository="$branch_dir/$COMPONENT_NAME"
+
+    ssh "$HOST" "mkdir -p '$branch_dir'; [ -d '$target_repository' ]"
+
+    has_repo=$?
+    if [ "$has_repo" != "0" ]; then
+        pid="$$"
+        local_tmp_dir="$tmpdir/$pid"
+        mkdir "$tmpdir/$pid"
+        git clone -q "$CURRENT_REPO_PATH" "$local_tmp_dir/$COMPONENT_NAME"
+        (cd "$local_tmp_dir/$COMPONENT_NAME" &&
+         git checkout -q "$branch_name")
+        scp -r "$local_tmp_dir/$COMPONENT_NAME" \
+            "$HOST:$DISTANT_TARGET_DIR/$branch_name/"
+        rm -rf "$local_tmp_dir/"
+    fi
 
     cat <<EOF | ssh "$HOST" | divert_to_log
 
-           mkdir -p "\$(dirname "$target_repository")"
            if [ -d "$target_repository" ]; then
                cd "$target_repository" &&
-               git fetch &&
-               git checkout "$branch_name" &&
+               git fetch -q &&
+               git checkout -q "$branch_name" &&
                git reset --hard origin/$branch_name
            else
-	       git clone "$SOURCE_REPO_FOR_TARGET_REPO" "$target_repository" &&
-               cd "$target_repository" &&
-               git checkout "$branch_name"
+               echo "Unsuspected error: '$target_repository' is not found."
+               exit 1
            fi
 
 	   test -x ./autogen.sh && ./autogen.sh
@@ -52,9 +63,9 @@ EOF
 install() {
     local usage distant_target_dir host
 
-    usage="$command_prefix HOST DISTANT_TARGET_DIR REVERSE_HOST"
+    usage="$command_prefix HOST DISTANT_TARGET_DIR"
 
-    if [ "$#" != 3  ]; then
+    if [ "$#" != 2  ]; then
         echo "Wrong number of arguments"
         echo "usage: $usage"
         exit 1
@@ -62,7 +73,6 @@ install() {
 
     host=$1
     distant_target_dir=$2
-    revhost=$3
 
     make_ssh_connection_work "$host" || exit 1
 
@@ -70,9 +80,6 @@ install() {
 
 HOST="$host"
 DISTANT_TARGET_DIR="$distant_target_dir"
-
-## XXXvlab: find another solution
-SOURCE_REPO_FOR_TARGET_REPO="$revhost"
 
 EOF
 
