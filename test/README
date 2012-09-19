@@ -1,0 +1,21 @@
+
+REQUIREMENTS
+------------
+
+These tests requires:
+
+  kal-shlib-shunit
+
+
+RUN TEST SUITE
+--------------
+
+To launch the test suite::
+
+  ./test
+
+To launch only one test::
+
+  ./test TEST_NAME
+
+

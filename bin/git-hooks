@@ -5,7 +5,7 @@ exname="$(basename "$0")"
 
 gitdir="$(git rev-parse --git-dir)"
 if [ "$?" != "0" ]; then
-    echo "You are not in a git repository." >&2
+    echo "fatal: 'git rev-parse --git-dir' failed." >&2
     exit 1
 fi
 
@@ -23,6 +23,7 @@ if ! [ -e "$githooks_base/generic-post-receive" ]; then
 fi
 
 
+git_hooks_init_usage="$exname init"
 function git_hooks_init() {
 
     if [ -L "$gitdir/hooks/post-receive" ]; then
@@ -120,7 +121,7 @@ function init_action() {
 
 }
 
-
+git_hooks_add_usage="$exname add HOOK [HOOK-OPTIONS...]"
 git_hooks_add() {
 
     export hook_name="$1"
@@ -136,15 +137,14 @@ git_hooks_add() {
     fi
 
     if [ -z "$hook_name" ]; then
-        usage="$exname add HOOK [HOOK-OPTIONS...]"
-        echo "You should provide a hook name."
-        echo
-        echo "These are the available hooks:"
+        echo "You should provide a hook name." >&2
+        echo >&2
+        echo "These are the available hooks:" >&2
         for hook_file in $hook_files; do
-            echo " - $(basename "$hook_file" .hook)"
+            echo " - $(basename "$hook_file" .hook)" >&2
         done
-        echo
-        echo "usage: $usage"
+        echo >&2
+        echo "usage: $git_hooks_add_usage" >&2
         exit 1
     fi
 
@@ -185,11 +185,17 @@ else
     cmd_funcs=$(set | egrep "^git_hooks_[a-zA-Z0-9_]+ ()" | cut -f 1 -d " " | \
          cut -f 3- -d "_")
 
-    echo "Unknown sub-command '$arg' for git-hooks"
-    echo
-    echo "This is the list of supported sub-commands:"
-    for i in $cmd_funcs; do
-       echo "   git-hooks $i"
+    if [ "$arg" ]; then
+        echo "Unknown sub-command '$arg' for git-hooks" >&2
+    else
+        echo "You should provide a sub-command." >&2
+    fi
+    echo >&2
+    echo "This is the list of supported sub-commands:" >&2
+    for cmd_func in $cmd_funcs; do
+        usage_var="git_hooks_${cmd_func}_usage"
+        echo "   " $(eval echo \$$usage_var) >&2
     done
-    echo
+    echo >&2
+    exit 1
 fi

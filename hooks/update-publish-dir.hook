@@ -67,8 +67,8 @@ install() {
     usage="$command_prefix HOST DISTANT_TARGET_DIR"
 
     if [ "$#" != 2  ]; then
-        echo "Wrong number of arguments"
-        echo "usage: $usage"
+        echo "Wrong number of arguments" >&2
+        echo "usage: $usage" >&2
         exit 1
     fi
 

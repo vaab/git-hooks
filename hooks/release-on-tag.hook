@@ -12,7 +12,7 @@ post-receive_ref() {
     is_tag "$refname" || return
 
     tag=$(get_bare_name "$refname")
-    echo "$tag" | grep -- "$TARGET_TAG_REGEX" 2>&1 >/dev/null || return
+    echo "$tag" | grep -E -- "$TARGET_TAG_REGEX" 2>&1 >/dev/null || return
 
     pid="$$"
     clone_dir="$tmpdir/$pid"
@@ -49,8 +49,8 @@ install() {
     usage="$command_prefix TARGET_TAG_REGEX HOST DISTANT_REPO_DIR"
 
     if [ "$#" != 3  ]; then
-        echo "Wrong number of arguments"
-        echo "usage: $usage"
+        echo "Wrong number of arguments" >&2
+        echo "usage: $usage" >&2
         exit 1
     fi
 
@@ -59,6 +59,8 @@ install() {
     dir=$3
 
     make_ssh_connection_work "$host" || exit 1
+    ## ensure destination is a directory
+    ssh "$host" "mkdir -p \"$dir\"" || exit 1
 
     init_action "$host:$dir" <<EOF
 

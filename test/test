@@ -1,0 +1,431 @@
+#!/bin/bash
+
+#!- Library include
+. /etc/shlib
+#!- 
+
+include shunit
+
+depends sed grep git mkdir readlink
+
+export -f matches
+export grep
+
+tmp=/tmp
+tprog="../bin/git-hooks"
+tprog=$(readlink -f $tprog)
+
+
+export PATH=".:$PATH"
+short_tprog=$(basename "$tprog")
+
+##
+## Convenience function
+##
+
+## Check if ssh authentication is passwd-less between localhost and $1 lxc
+function can_ssh_without_passwd() {
+  ssh -o StrictHostKeyChecking=no -o PasswordAuthentication=no "$1" \
+     echo "test" >/dev/null 2>&1
+}
+
+## Ensure that ssh authentication is passwd-less between localhost and $1 lxc
+function make_ssh_connection_work() {
+    host="$1"
+    if ! can_ssh_without_passwd "$host"; then
+        echo "These tests will need to make no password SSH connection "
+        echo "to localhost from localhost (with current user)."
+        echo
+        ## need to create key and send it to HOST
+        if ! [ -e ~/.ssh/id_rsa.pub ]; then
+            echo "For that you need a SSH key to be set... I'm creating one."
+            ## need to create a key
+            ssh-keygen -t rsa -q -f ~/.ssh/id_rsa -N ""
+        fi
+
+        echo "Logging to $host to copy ssh keys:"
+        ssh-copy-id "$host"
+        if [ "$?" != 0 ]; then
+            echo "Error: cannot ssh-copy-id." >&2
+            return 1
+	fi
+
+    fi
+
+    if ! can_ssh_without_passwd "$host"; then
+        echo "Cannot ssh towards $HOST despite copying id ?!" >&2
+        return 1
+    fi
+}
+
+make_ssh_connection_work localhost || exit 1
+
+function init_test() {
+
+    tempdir="$tmp/${short_tprog}_test.$$.dir"
+    repository=$tempdir/test_repository
+
+    Wrap -q -d "Setting up master repository" <<EOF
+
+    "$mkdir" -p "$repository"
+    (
+     cd "$repository"
+     git init && 
+     echo "Test Value" > myfile &&
+     git add myfile &&
+     git commit -am "First commit"
+    )
+
+EOF
+
+    slave="$tempdir/test_slave"
+
+    Wrap -q -d "Setting up slave repository" <<EOF
+
+    (
+     cd "$tempdir" &&
+     git clone "$repository" "$slave"
+    )
+
+EOF
+
+    cd "$repository"
+
+}
+
+function tear_test() {
+
+    Wrap -q -d "Tearing down" <<EOF
+
+    rm -rf "$tempdir"
+
+EOF
+
+}
+
+
+##
+## Tests
+##
+
+##
+# Checking arguments
+function test_args {
+
+    assert_list <<EOF
+
+### Basic Arguments Parsing
+
+# were tested individually by changing each behavior in $tprog
+
+## -- call of '$short_tprog' with no arg fails (errlvl != 0)
+
+! "$tprog"
+
+## -- call of '$short_tprog' shows list of sub-command in stderr
+
+("$tprog" 1>/dev/null; true) 2>&1 | "$grep" 'list.*sub-command'
+
+## -- call of '$short_tprog' with bad command shows list of sub-command in stderr
+
+("$tprog" 'bad_command' 1>/dev/null; true) 2>&1 | "$grep" 'list.*sub-command'
+
+## -- call of '$short_tprog' with bad command states that 'bad_command' is bad.
+
+("$tprog" 'bad_command' 1>/dev/null; true) 2>&1 | "$grep" 'bad_command'
+
+EOF
+
+}
+
+##
+# Checking subcommand init
+function test_subcommand_init {
+
+    init_test
+
+    assert_list <<EOF
+
+### Subcommand Arguments
+
+# were tested individually by changing each behavior in $short_tprog
+
+## -- call of '$short_tprog init' outside of a git repository should fail
+
+# Hopefully, / is not a git repository.
+cd /
+! "$tprog" init
+
+## -- call of '$short_tprog init' outside of a git repository should state "not" and "git repository"
+
+# Hopefully, / is not a git repository.
+cd /
+("$tprog" init 1>/dev/null; true) 2>&1 | grep -i "not.*git.*repositor"
+
+
+### Normal behavior
+
+# were tested individually by changing each behavior in $short_tprog
+
+## -- call of '$short_tprog init' inside of a git repository should succeed
+
+cd $repository
+"$tprog" init
+
+## -- And result should be creation of a post-receive
+
+[ -e "$repository/.git/hooks/post-receive" ]
+
+EOF
+
+    tear_test
+
+}
+
+
+##
+# Checking subcommand init
+function test_subcommand_add {
+
+    init_test
+
+    assert_list <<EOF
+
+### Subcommand Arguments
+
+# were tested individually by changing each behavior in $short_tprog
+
+## -- call of '$short_tprog add' should fail
+
+! "$tprog" add
+
+## -- call of '$short_tprog add' should list hooks
+
+("$tprog" add 1>/dev/null; true) 2>&1 | grep -i "hooks"
+
+EOF
+
+    tear_test
+}
+
+function test_hook_release_on_tag {
+
+    init_test
+
+    assert_list <<EOF
+
+### Release on tag argument and help
+
+# were tested individually by changing each behavior in $short_tprog
+
+## -- call of '$short_tprog add release-on-tag' should fail
+
+! "$tprog" add release-on-tag
+
+## -- call of '$short_tprog add release-on-tag' should show usage
+
+("$tprog" add release-on-tag 1>/dev/null; true) 2>&1 | grep -i "^usage:"
+
+
+### Normal behavior
+
+## -- real normal call
+
+"$tprog" add release-on-tag "[0-9]+.[0-9]+.[0-9]+(-.*)?" localhost  $tempdir/release-on-tag
+
+## -- triggering the hook
+
+cd "$slave"
+git tag 0.3.2-rc1
+git push --tags origin
+
+## -- checking directory creation
+
+[ -d "$tempdir/release-on-tag" ]
+
+## -- checking file creation
+
+ls "$tempdir/release-on-tag/test_repository-"*.tar.gz
+
+EOF
+
+    tear_test
+}
+
+
+function test_hook_sync_workdir {
+
+    init_test
+
+    assert_list <<EOF
+
+### Release on tag argument and help
+
+# were tested individually by changing each behavior in $short_tprog
+
+## -- call of '$short_tprog add sync-workdir' should fail
+
+! "$tprog" add sync-workdir
+
+## -- call of '$short_tprog add sync-workdir' should show usage
+
+("$tprog" add sync-workdir 1>/dev/null; true) 2>&1 | grep -i "^usage:"
+
+
+### Normal behavior
+
+## -- real normal call
+
+"$tprog" add sync-workdir foo localhost $tempdir/sync-workdir
+
+## -- triggering the hook
+
+cd "$slave"
+git checkout -b "foo"
+echo "Additions" >> myfile
+git commit -am "new additions"
+git push origin foo
+
+## -- checking directory creation
+
+[ -d "$tempdir/sync-workdir" ]
+
+## -- checking file creation
+
+tail -n 1 "$tempdir/sync-workdir/myfile" | grep "Additions"
+
+## -- checking it's a git repository (and messing with current branch)
+
+cd "$tempdir/sync-workdir"
+git checkout "master"
+
+## -- Second push (with reset)
+
+cd "$slave"
+echo "Bar" >> myfile
+git commit --amend -a -C HEAD
+git push -f origin foo
+
+## -- checking changes have been applied
+
+tail -n 1 "$tempdir/sync-workdir/myfile" | grep "Bar"
+
+## -- checking it's in the correct branch
+
+cd "$tempdir/sync-workdir"
+git symbolic-ref HEAD
+git symbolic-ref HEAD | head -n 1 | grep "/foo$"
+
+EOF
+
+    tear_test
+}
+
+
+function test_hook_update_publish_dir {
+
+    init_test
+
+    assert_list <<EOF
+
+### Release on tag argument and help
+
+# were tested individually by changing each behavior in $short_tprog
+
+## -- call of '$short_tprog add update-publish-dir' should fail
+
+! "$tprog" add update-publish-dir
+
+## -- call of '$short_tprog add update-publish-dir' should show usage
+
+("$tprog" add update-publish-dir 1>/dev/null; true) 2>&1 | grep -i "^usage:"
+
+
+### Normal behavior
+
+## -- real normal call
+
+"$tprog" add update-publish-dir localhost $tempdir/update-publish-dir
+
+## -- triggering the hook
+
+cd "$slave"
+git checkout -b "foo"
+echo "Additions" >> myfile
+git commit -am "new additions"
+git push origin foo
+
+## -- checking master directory creation
+
+[ -d "$tempdir/update-publish-dir" ]
+
+## -- checking branch directory creation
+
+[ -d "$tempdir/update-publish-dir/foo" ]
+
+## -- checking repository directory creation
+
+[ -d "$tempdir/update-publish-dir/foo/test_repository" ]
+
+## -- checking file contents
+
+tail -n 1 "$tempdir/update-publish-dir/foo/test_repository/myfile" | grep "Additions"
+
+## -- checking it's a git repository (and messing with current branch)
+
+cd "$tempdir/update-publish-dir/foo/test_repository"
+git checkout "master"
+
+## -- Second push (with reset)
+
+cd "$slave"
+echo "Bar" >> myfile
+git commit --amend -a -C HEAD
+git push -f origin foo
+
+## -- checking changes have been applied
+
+tail -n 1 "$tempdir/update-publish-dir/foo/test_repository/myfile" | grep "Bar"
+
+## -- checking it's in the correct branch
+
+cd "$tempdir/update-publish-dir/foo/test_repository"
+git symbolic-ref HEAD
+git symbolic-ref HEAD | head -n 1 | grep "/foo$"
+
+## -- triggering the hook in the "bar" branch
+
+cd "$slave"
+git checkout -b "bar"
+echo "Something" >> myfile
+git commit -am "new additions"
+git push origin bar
+
+## -- checking branch directory creation
+
+[ -d "$tempdir/update-publish-dir/bar" ]
+
+## -- checking repository directory creation
+
+[ -d "$tempdir/update-publish-dir/bar/test_repository" ]
+
+## -- checking it's in the correct branch
+
+cd "$tempdir/update-publish-dir/bar/test_repository"
+git symbolic-ref HEAD
+git symbolic-ref HEAD | head -n 1 | grep "/bar$"
+
+## -- checking changes have been applied
+
+tail -n 1 "$tempdir/update-publish-dir/bar/test_repository/myfile" | grep "Something"
+
+
+EOF
+
+    tear_test
+}
+
+
+
+
+testbench $*
