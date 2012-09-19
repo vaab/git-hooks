@@ -63,22 +63,20 @@ post-receive_ref() {
 ##   $hook_name
 install() {
 
-    local usage branch hostdir host dir
+    local usage branch host dir
 
     ## XXXvlab: remove reverse_host !
-    usage="$command_prefix TARGET_BRANCH HOST:DISTANT_REPO_DIR"
+    usage="$command_prefix TARGET_BRANCH HOST DISTANT_REPO_DIR"
 
-    if [ "$#" != 2  ]; then
+    if [ "$#" != 3  ]; then
         echo "Wrong number of arguments"
         echo "usage: $usage"
         exit 1
     fi
 
     branch=$1
-    hostdir=$2
-
-    host=$(echo $2 | cut -f 1 -d ":")
-    dir=$(echo $2 | cut -f 2- -d ":")
+    host=$2
+    dir=$3
 
     make_ssh_connection_work "$host" || exit 1
 

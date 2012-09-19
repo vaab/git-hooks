@@ -44,21 +44,19 @@ post-receive_ref() {
 ## Receives:
 ##   $hook_name
 install() {
-    local usage tag_regex hostdir host dir
+    local usage tag_regex host dir
 
-    usage="$command_prefix TARGET_TAG_REGEX HOST:DISTANT_REPO_DIR"
+    usage="$command_prefix TARGET_TAG_REGEX HOST DISTANT_REPO_DIR"
 
-    if [ "$#" != 2  ]; then
+    if [ "$#" != 3  ]; then
         echo "Wrong number of arguments"
         echo "usage: $usage"
         exit 1
     fi
 
     tag_regex=$1
-    hostdir=$2
-
-    host=$(echo $hostdir | cut -f 1 -d ":")
-    dir=$(echo $hostdir | cut -f 2- -d ":")
+    host=$2
+    dir=$3
 
     make_ssh_connection_work "$host" || exit 1
 
