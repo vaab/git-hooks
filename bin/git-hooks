@@ -12,7 +12,7 @@ fi
 githooks_base=$(git config "git-hooks.install-dir")
 if [ "$?" != "0" ]; then
     echo "No git-hooks.install-dir variable. Please set this variable with:" >&2
-    echo "   git config [--system] git-hooks.install-dir MY_GIT_HOOK_BASE_DIR" >&2
+    echo "   git config [--system] git-hooks.install-dir MY_GIT_HOOKS_BASE_DIR" >&2
     exit 1
 fi
 
