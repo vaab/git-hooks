@@ -426,6 +426,102 @@ EOF
 }
 
 
+function test_multiple_hook {
 
+    init_test
+
+    assert_list <<EOF
+
+### Multiple hook creation
+
+## -- add first hook
+
+"$tprog" add release-on-tag "[0-9]+.[0-9]+.[0-9]+(-.*)?" localhost  $tempdir/release-on-tag1
+
+## -- add second hook
+
+"$tprog" add release-on-tag "[0-9]+.[0-9]+.[0-9]+(-.*)?" localhost  $tempdir/release-on-tag2
+
+### Triggering and check hook execution
+
+## -- triggering the hook
+
+cd "$slave"
+git tag 0.3.2-rc1
+git push --tags origin
+
+## -- checking directory creation first hook
+
+[ -d "$tempdir/release-on-tag1" ]
+
+## -- checking directory creation second hook
+
+[ -d "$tempdir/release-on-tag2" ]
+
+## -- checking files creation first hook
+
+ls "$tempdir/release-on-tag1/test_repository"*
+
+## -- checking files creation second hook
+
+ls "$tempdir/release-on-tag2/test_repository"*
+
+EOF
+   tear_test
+
+}
+
+
+function test_multiple_pushed_ref {
+
+    init_test
+
+    assert_list <<EOF
+
+### Release on tag argument and help
+
+## -- add first hook
+
+"$tprog" add release-on-tag "[0-9]+.[0-9]+.[0-9]+(-.*)?" localhost  $tempdir/release-on-tag1
+
+## -- add second hook
+
+"$tprog" add release-on-tag "[0-9]+.[0-9]+.[0-9]+(-.*)?" localhost  $tempdir/release-on-tag2
+
+## -- triggering the hook
+
+cd "$slave"
+git tag 0.3.2-rc1
+git tag 0.1.1
+git tag 0.1.2
+git push --tags origin 0.3.2-rc1 0.1.1 0.1.2
+
+## -- checking directory creation first hook
+
+[ -d "$tempdir/release-on-tag1" ]
+
+## -- checking directory creation second hook
+
+[ -d "$tempdir/release-on-tag2" ]
+
+## -- checking files creation first hook
+
+ls "$tempdir/release-on-tag1/"
+ls "$tempdir/release-on-tag1/test_repository-0.3.2-rc1.tar.gz"
+ls "$tempdir/release-on-tag1/test_repository-0.1.1.tar.gz"
+ls "$tempdir/release-on-tag1/test_repository-0.1.2.tar.gz"
+
+## -- checking files creation second hook
+
+ls "$tempdir/release-on-tag2/"
+ls "$tempdir/release-on-tag2/test_repository-0.3.2-rc1.tar.gz"
+ls "$tempdir/release-on-tag2/test_repository-0.1.1.tar.gz"
+ls "$tempdir/release-on-tag2/test_repository-0.1.2.tar.gz"
+
+EOF
+
+    tear_test
+
+}
 
 testbench $*
