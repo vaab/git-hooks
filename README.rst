@@ -2,7 +2,7 @@
 git-hooks
 =========
 
-``Git-hooks`` provides a simple shell framework to manage your git hooks. 
+``Git-hooks`` provides a simple shell framework to manage your git hooks.
 
 This project is quite new and only supports the ``post-receive`` git hook,
 implementing the other hooks could be quickly implemented.
@@ -94,3 +94,120 @@ of your hook.
 ``post-receive_ref`` function will be called upon each reference received by git.
 
 ``post-receive_post`` function will be called once all ref has been received.
+
+
+Hooks
+-----
+
+These hooks are already written and might give you some hints how to implement
+a new one.
+
+
+cascade-push
+''''''''''''
+
+
+Synopsis
+
+    ::
+
+        git-hooks add cascade-push TARGET_BRANCH_REGEX REMOTE
+
+Description
+
+    This hook will push selected branch to a specific remote. A branch ref
+    matching the TARGET_BRANCH_REGEX will trigger the command::
+
+        git push REMOTE TARGET_BRANCH_REGEX
+
+Options
+
+    TARGET_BRANCH_REGEX
+
+        Regex to pinpoint the which branch will trigger the hook
+
+    REMOTE
+
+        Remote alias to which the target branch will be pushed to.
+
+
+
+release-on-tag
+''''''''''''''
+
+Synopsis
+
+    ::
+
+        git-hooks add release-on-tag TARGET_TAG_REGEX HOST DISTANT_REPO_DIR
+
+Description
+
+    On tag pushed matching the TARGET_TAG_REGEX, a ``tar.gz``
+    export of the corresponding work tree will be sent via ``scp`` to
+    HOST:DISTANT_REPO_DIR repository.
+
+Options
+
+    TARGET_TAG_REGEX
+
+        Regex to filter tag which will trigger the hook.
+
+    HOST
+
+        Remote host that will be used for the ``scp`` command.
+
+    DISTANT_REPO_DIR
+
+        Remote directory (on the HOST) that will be used to specify destination
+        location for the ``scp`` command.
+
+
+
+bzr-push
+''''''''
+
+Synopsis
+
+    ::
+
+        git-hooks add bzr-push BZR_IDENT TARGET_BRANCH_REGEX BRANCH_NAME_SUBST_REGEX
+
+
+Description
+
+    On branch pushed matching the TARGET_BRANCH_REGEX, it'll be converted
+    and pushed to launchpad on the account identified by BZR_IDENT.
+
+    The branch name will be used and transformed thanks to BRANCH_NAME_SUBST_REGEX
+    to create the target launchpad branch name.
+
+    Note that you might want to test that you can actually push with the
+    user account that will launch the hook. This might requires some
+    setup to be made.
+
+    This hook requires ``git-bzr-ng`` to be installed.
+
+    This hook is to be considered early-alpha stage.
+
+
+Options
+
+    BZR_IDENT
+
+        Launchpad account identifier (can be a team or a user account).
+
+    TARGET_BRANCH_REGEX
+
+        Regex to filter branch which will trigger the hook.
+
+    BRANCH_NAME_SUBST_REGEX
+
+        Substitution regex (ie:``s%^lp/(.+)$%\1%g``) that will be used to
+        get the target bazar branch name from the triggering branch name.
+
+        This is quite important as launchpad won't tolerate some characters
+        as ``/``. So you should make sure to remove them.
+
+
+
