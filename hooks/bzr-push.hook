@@ -1,0 +1,114 @@
+## -*- mode: shell-script -*-
+
+## All variables listed here will be checked for existence
+required_variables="BZR_IDENT TARGET_BRANCH_REGEX BRANCH_NAME_SUBST_REGEX"
+
+logfile=/tmp/logfile
+## post-receive_ref function gets called for each pushed ref.
+## These variables will be set accordingly:
+##     $oldrev, $newrev, $refname
+post-receive_ref() {
+
+    is_branch "$refname" || return
+
+    branch_name="$(get_bare_name "$refname")"
+    echo "$branch_name" | grep -E -- "$TARGET_BRANCH_REGEX" 2>&1 >/dev/null || return
+
+    ## get closest local bzr mirror branch
+
+
+    closest_merge_base=$(
+        cd "$CURRENT_REPO_PATH"
+        git branch --list "bzr/*" | cut -c 3- | \
+        xargs git merge-base --octopus "$branch_name"
+    ) || return 1
+
+    closest_local_bzr_branches=$(
+        cd "$CURRENT_REPO_PATH"
+        git branch --list "bzr/*" --contains "$closest_merge_base" | cut -c 3-
+    ) || return 1
+
+    if [ -z "$closest_local_bzr_branches" ]; then
+        echo "Couldn't relate $branch_name to a local bzr synced branch."
+        return 1
+    fi
+
+
+    ## we need to remove all bzr branches as lp:openobject-addons/7.0 which is not trunk branch
+    bzr_upstream_branch=$(cd "$CURRENT_REPO_PATH"; echo "$closest_local_bzr_branches" | while read branch; do
+                              git config bzr."$branch".upstream
+                          done | grep -v "/" | head -n 1) || return 1
+    if [ -z "$bzr_upstream_branch" ]; then
+        echo "Can't find a trunk bzr branch for branches:"
+        echo "$closest_local_bzr_branches" | sed -r 's/^/  - /g'
+        return 1
+    fi
+
+    bzr_upstream_branch_basename=${bzr_upstream_branch#lp:}
+
+    bzr_distant_branch_name=$(echo "$branch_name" | sed -r "$BRANCH_NAME_SUBST_REGEX") || return 1
+
+
+    ## Create or maintain intermediate branch (which sole purpose is to have a branch
+    ## without '/' in its name). This is because git-bzr-bg does not support this.
+    intermediate_branch_name=$(echo "$branch_name" | tr "/" "_")
+    (
+     cd "$CURRENT_REPO_PATH/.." &&
+     git checkout "$branch_name" &&
+     git branch -f "$intermediate_branch_name" "$branch_name"
+    ) || return 1
+
+    echo git bzr push lp:~$BZR_IDENT/"$bzr_upstream_branch_basename"/"$bzr_distant_branch_name" \
+        --parent_branch "$bzr_upstream_branch_basename"
+
+    (
+    cd "$CURRENT_REPO_PATH/.." &&
+    echo "$PWD" &&
+    git checkout "$intermediate_branch_name" &&
+    git bzr push lp:~$BZR_IDENT/"$bzr_upstream_branch_basename"/"$bzr_distant_branch_name" \
+        --parent_branch "$bzr_upstream_branch_basename"
+    ) || return 1
+
+    echo "Your branch has been created on launchpad:"
+    echo "  - URL: https://code.launchpad.net/~$BZR_IDENT/$bzr_upstream_branch_basename/$bzr_distant_branch_name"
+}
+
+## post-receive_post function gets called once per push after refs.
+#post-receive_post() {
+#  :
+#}
+
+
+## Setup the hook when in a gitdir. This is launched thanks to the
+##  ``git-hooks add <my-hook-name> ...``
+##
+## Note: this command should create the ``<my-hook>.conf`` file thanks to the
+##   ``init_action`` command.
+## Receives:
+##   $hook_name
+install() {
+
+    local usage branch remote
+
+    usage="$command_prefix BZR_IDENT TARGET_BRANCH_REGEX BRANCH_NAME_SUBST_REGEX"
+
+    if [ "$#" != 3  ]; then
+        echo "Wrong number of arguments" >&2
+        echo "usage: $usage" >&2
+        exit 1
+    fi
+
+    branch="$2"
+    ident="$1"
+    subst="$3"
+
+
+    init_action "$dir" <<EOF
+
+BZR_IDENT="$ident"
+TARGET_BRANCH_REGEX="$branch"
+BRANCH_NAME_SUBST_REGEX="$subst"
+
+EOF
+
+}

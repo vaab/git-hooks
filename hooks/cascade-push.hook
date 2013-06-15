@@ -1,0 +1,68 @@
+## -*- mode: shell-script -*-
+
+## All variables listed here will be checked for existence
+required_variables="REMOTE TARGET_BRANCH_REGEX"
+
+logfile=/tmp/logfile
+## post-receive_ref function gets called for each pushed ref.
+## These variables will be set accordingly:
+##     $oldrev, $newrev, $refname
+post-receive_ref() {
+
+    is_branch "$refname" || return
+
+    branch_name="$(get_bare_name "$refname")"
+    echo "$branch_name" | grep -E -- "$TARGET_BRANCH_REGEX" 2>&1 >/dev/null || return
+
+    ## warning: REMOTE could contains regex magic char, and that's not
+    ## wasn't reviewed as non harmfull.
+    (cd "$CURRENT_REPO_PATH"
+    git remote | grep "^$REMOTE\$")  2>&1 >/dev/null
+
+    has_repo=$?
+    if [ "$has_repo" != "0" ]; then
+        echo "Remote $REMOTE is not existent on the server remote and thus, cascade push cannot be performed."
+        echo "To enable cascade push to $REMOTE, you need to create this remote on server side."
+        return
+    fi
+
+    git push -f "$REMOTE" "$branch_name"
+
+}
+
+## post-receive_post function gets called once per push after refs.
+#post-receive_post() {
+#  :
+#}
+
+
+## Setup the hook when in a gitdir. This is launched thanks to the
+##  ``git-hooks add <my-hook-name> ...``
+##
+## Note: this command should create the ``<my-hook>.conf`` file thanks to the
+##   ``init_action`` command.
+## Receives:
+##   $hook_name
+install() {
+
+    local usage branch remote
+
+    usage="$command_prefix TARGET_BRANCH_REGEX REMOTE"
+
+    if [ "$#" != 2  ]; then
+        echo "Wrong number of arguments" >&2
+        echo "usage: $usage" >&2
+        exit 1
+    fi
+
+    branch="$1"
+    remote="$2"
+
+    init_action "$dir" <<EOF
+
+REMOTE="$remote"
+TARGET_BRANCH_REGEX="$branch"
+
+EOF
+
+}
